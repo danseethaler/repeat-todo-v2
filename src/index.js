@@ -1,7 +1,7 @@
 import 'milligram'
 import React from 'react'
 import {render} from 'react-dom'
-import {Motion, spring} from 'react-motion'
+import {TransitionMotion, spring} from 'react-motion'
 import {
   SortableContainer,
   SortableElement,
@@ -34,75 +34,96 @@ const DragHandle = SortableHandle(({children}) => (
 ))
 
 const SortableItem = SortableElement(
-  ({id, value, sortIndex, onDeleteItem, onCompleteItem, ...rest}) => {
+  ({id, value, sortIndex, style, onDeleteItem, onCompleteItem, ...rest}) => {
     return (
-      <Motion key={id} style={{top: spring(sortIndex * 45)}}>
-        {val => (
-          <div
-            className="draggable-item-row"
-            style={{
-              ...val,
-              position: 'absolute',
-              left: 0,
-              right: 0,
+      <div
+        style={{
+          ...style,
+          // top: sortIndex * 45,
+          position: 'absolute',
+          left: 0,
+          right: 0,
+        }}
+        className="draggable-item-row"
+      >
+        <hr style={{margin: 8}} />
+        <Row
+          gap={30}
+          css={{
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <DragHandle />
+          <div style={{flex: 1}}>{value}</div>
+          <IconButton
+            onClick={e => {
+              e.target.blur()
+              onCompleteItem(id)
             }}
           >
-            <hr style={{margin: 8}} />
-            <Row
-              gap={30}
-              css={{
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <DragHandle />
-              <div style={{flex: 1}}>{value}</div>
-              <IconButton
-                onClick={e => {
-                  e.target.blur()
-                  onCompleteItem(id)
-                }}
-              >
-                ✅
-              </IconButton>
-              <IconButton
-                onClick={e => {
-                  e.target.blur()
-                  if (
-                    confirm(
-                      '🚨 Hey! Are you sure you wanna delete that TODO? 🚨',
-                    )
-                  ) {
-                    onDeleteItem(id)
-                  }
-                }}
-              >
-                ❌
-              </IconButton>
-            </Row>
-          </div>
-        )}
-      </Motion>
+            ✅
+          </IconButton>
+          <IconButton
+            onClick={e => {
+              e.target.blur()
+              if (
+                confirm('🚨 Hey! Are you sure you wanna delete that TODO? 🚨')
+              ) {
+                onDeleteItem(id)
+              }
+            }}
+          >
+            ❌
+          </IconButton>
+        </Row>
+      </div>
     )
   },
 )
 
-const SortableList = SortableContainer(
-  ({items, history, selectedList, ...rest}) => (
-    <div style={{position: 'relative'}}>
-      {selectedList && selectedList.items
-        ? Object.entries(selectedList.items)
-            .sort(([, a], [, b]) => (a.order > b.order ? 1 : -1))
-            .map(([id, {value}], index) => (
-              <SortableItem
-                key={id}
-                {...{id, value, index, sortIndex: index, ...rest}}
-              />
-            ))
-        : null}
-    </div>
-  ),
-)
+const SortableList = SortableContainer(({selectedList, ...rest}) => {
+  let items = null
+  if (selectedList && selectedList.items) {
+    items = Object.entries(selectedList.items).sort(
+      ([, a], [, b]) => (a.order > b.order ? 1 : -1),
+    )
+
+    items = (
+      <TransitionMotion
+        willLeave={() => ({top: spring(0)})}
+        styles={items.map(([key, item], index) => ({
+          key,
+          style: {top: spring(45 * index)},
+          data: item,
+        }))}
+      >
+        {interpolatedStyles => (
+          <div>
+            {interpolatedStyles.map(({key, data: value, style}, index) => {
+              // console.log('style', style)
+              return (
+                <SortableItem
+                  key={key}
+                  {...{
+                    id: key,
+                    value: value.value,
+                    index,
+                    sortIndex: index,
+                    style,
+                    ...rest,
+                  }}
+                />
+              )
+            })}
+          </div>
+        )}
+      </TransitionMotion>
+    )
+  }
+
+  return <div style={{position: 'relative'}}>{items}</div>
+})
 
 registerServiceWorker()
 
@@ -186,8 +207,8 @@ function Lists({
             <SortableList
               lockAxis="y"
               useDragHandle
-              onSortEnd={onSortEnd}
               {...{
+                onSortEnd,
                 selectedList,
                 onDeleteItem,
                 onCompleteItem,
